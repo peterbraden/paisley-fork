@@ -240,11 +240,12 @@ class CouchDB(object):
         uri = "/%s/_design/%s/_view/%s" % (dbName, docId, viewId)
 
         for arg in kwargs.keys():
-            kwargs[arg] = json.dumps(kwargs[arg])
+            if not isinstance(kwargs[arg], str):
+                kwargs[arg] = json.dumps(kwargs[arg])
 
         if kwargs:
             uri += "?%s" % (urlencode(kwargs),)
-
+        
         return self.get(uri
             ).addCallback(self.parseResult)
 
