@@ -40,8 +40,12 @@ except ImportError:
                 d = kw or self.kw
             return self.fn(*(self.args + args), **d)
 
-SOCK_TIMEOUT = 300
 
+SOCK_TIMEOUT = 3000
+
+from twisted.internet import reactor, protocol
+import twisted.internet.defer
+from twisted.web.client import HTTPPageGetter
 
 class CouchDB(object):
     """
@@ -69,6 +73,43 @@ class CouchDB(object):
             self.bindToDB(dbName)
 
 
+        self.queue = twisted.internet.defer.DeferredQueue(backlog=0)
+        self.factory = protocol.ClientCreator(reactor, protocol.Protocol)
+        
+    def _getConn(self, *args):
+        '''
+        Maintain Connection Pool
+        '''
+        try:
+            print 'get'
+            return self.queue.get()
+        except twisted.internet.defer.QueueUnderflow:
+            print 'underflow'
+            d = self.factory.connectTCP(self.host, self.port)
+            d.addCallback(self._gotConn, *args)
+            return d
+    
+    def _gotConn(self, conn, url):
+        factory = HTTPClientFactory(url, **kwargs)
+        
+        print "!!", transport
+        adr = None
+        p = factory.buildProtocol(adr)
+        p.makeConnection(transport)
+        
+        def nest(x):
+            print "!!"
+            self._returnConn(transport)
+            de.callback(x)
+        
+        factory.deferred.callback(nest)
+        
+    def _returnConn(self, conn):
+        '''
+        Once we're done with a connection, return it to the pool
+        '''
+        self.queue.put(conn)
+            
     def parseResult(self, result):
         """
         Parse JSON result from the DB.
@@ -283,11 +324,17 @@ class CouchDB(object):
         kwargs["headers"] = {
             "Accept": "application/json",
             "Content-Type": "application/json",
+            "Connection" : "Keep-Alive",
         }
-        factory = HTTPClientFactory(url, **kwargs)
-        from twisted.internet import reactor
-        reactor.connectTCP(self.host, self.port, factory, timeout=SOCK_TIMEOUT)
-        return factory.deferred
+        
+        de = twisted.internet.defer.Deferred()
+        
+        print "!"    
+        transport = self._getConn(url)
+        transport.callback(self._gotConn)
+        return de
+
+        #reactor.connectTCP(self.host, self.port, factory, timeout=SOCK_TIMEOUT)
 
 
     def get(self, uri):

@@ -55,7 +55,7 @@ class CouchDBTestCase(TestCase):
         """
         Create a fake client to be used in the tests.
         """
-        self.client = TestableCouchDB("locahost")
+        self.client = TestableCouchDB("localhost")
 
 
     def test_get(self):
@@ -400,4 +400,42 @@ class ConnectedCouchDBTestCase(TestCase):
             self.assertEquals(result, data)
         d.addCallback(cb)
         return d
+
+
+class RealCouchDBTestCase(TestCase):
+    """
+    All of the above tests make a mock couchdb and are therefore kinda useless for actually
+    testing real performance.
+    
+    These will fail unless you have a couch instance running on localhost:5984
+    """
+    
+    def setUp(self):
+        """
+        Create a connection to couchdb on localhost:5984 (default)
+        """
+        self.client = paisley.CouchDB("localhost", 5984)
+        try:
+            self.client.deleteDB('mydb')
+        except:
+            pass           
+    
+    def test_createDB(self):
+        """
+        Test createDB.
+        """
+        data = [u"mydb"]
+        r = self.client.createDB("mydb")
+        
+        def testList(result):
+            assert u"mydb" in result
+        
+        def listDb(res):
+            d = self.client.listDB()
+            d.addCallback(testList)
+            return d
+        
+        r.addCallback(listDb)
+        return r
+
 
